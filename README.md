@@ -16,7 +16,7 @@ Open the game's GitHub Pages link, then:
 
 It opens full screen like a regular app and works offline after the first visit. Progress is saved on the device.
 
-Duels work app-to-app over the internet: one player taps Create match and shares the 4-letter code.
+Multiplayer works app-to-app over the internet: team up in one shared arena or race in separate arenas. One player taps Create match and shares the 4-letter code.
 
 ## Android app
 
