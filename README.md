@@ -16,7 +16,7 @@ Open the game's GitHub Pages link, then:
 
 It opens full screen like a regular app and works offline after the first visit. Progress is saved on the device.
 
-Live Duels only work when the game is opened inside Claude.
+Duels work app-to-app over the internet: one player taps Create match and shares the 4-letter code.
 
 ## Android app
 

@@ -136,6 +136,8 @@ p{margin:0;font-size:16px;line-height:1.45;color:var(--ink2);max-width:60ch}
 .legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;font-size:13.5px;color:var(--ink2)}
 .legend b{color:var(--ink)}
 .small{font-size:13px;color:var(--ink2)}
+a.btn{display:block;text-align:center;text-decoration:none;color:var(--ink)}
+a.btn.dl{background:var(--ink);color:#ffd36b}
 .hearts{align-items:center;max-width:150px}
 .hrt{width:18px;height:17px;flex:none}
 .hrt .bg{fill:rgba(255,255,255,.85)}.hrt .fg{fill:#ff5c7a}.hrt .ol{fill:none;stroke:var(--ink);stroke-width:2.2}.hrt.off .ol{stroke:var(--steel)}
@@ -1388,7 +1390,8 @@ function menu(){
    </div>
    <div class="quests"><h3>Daily quests</h3>${qs}</div>
    <div class="btns"><button class="btn" data-act="locker">Missions ★ ${Object.keys(missionsDone).length}/${MISSIONS.length}</button><button class="btn" data-act="how">How to play</button></div>
-   <button class="btn" data-act="mute">Sound: ${muted?'Off':'On'}</button>`,
+   <button class="btn" data-act="mute">Sound: ${muted?'Off':'On'}</button>
+   ${window.claude?'':'<!--'}<a class="btn dl" href="https://github.com/ninjaivan2012-gif/ink-blade/releases/latest/download/ink-blade.apk" target="_blank" rel="noopener">⬇ Download the Android app</a>${window.claude?'':'-->'}`,
   a=>{
     if(a==='brawlers')brawlers();
     if(a==='survival')newRun('survival',{tut:!tutDone});
@@ -1544,14 +1547,13 @@ function getRoom(){
 const cleanName=s=>String(s||'').replace(/[^\p{L}\p{N} _.-]/gu,'').trim().slice(0,14);
 function duelMenu(msg){
   mode='menu';S=null;hud.hidden=true;layout();
-  showOv(`${topbar('Duel')}<h2>Play a friend</h2>
+  showOv(`${topbar('Duel')}${msg?`<p class="note" style="border-color:var(--hot);color:var(--ink);font-weight:600">${esc(msg)}</p>`:''}<h2>Play a friend</h2>
    <p>You each play your own arena at the same time, with your own brawler. Kill 3 or more in one dash and your friend gets extra enemies. Last blade standing wins.</p>
    <div class="field"><label for="nm">Your name</label><input id="nm" maxlength="14" autocomplete="off" value="${esc(myName)}" placeholder="Name"></div>
    <button class="btn pri" data-act="create">Create match</button>
    <div class="field"><label for="code">Or join with a code</label><input id="code" maxlength="4" autocomplete="off" autocapitalize="characters" placeholder="ABCD" style="text-transform:uppercase;letter-spacing:.2em"></div>
    <button class="btn" data-act="join">Join match</button>
-   ${msg?`<p class="note">${esc(msg)}</p>`:''}
-   <p class="note">How it works: share this game with your friend from the Share menu. One of you taps Create match and reads out the code; the other types it in and taps Join. Both tap Ready. Any Wi-Fi or mobile data works.</p>`,
+   <p class="note">How it works: one of you taps Create match and reads out the 4-letter code. The other types it in and taps Join. Both tap Ready. You both need to be online. Play app-to-app or Claude-to-Claude.</p>`,
   async a=>{
     if(a==='back'){menu();return}
     const nm=cleanName($('#nm').value)||'Player';myName=nm;store.set('name',nm);
@@ -1559,15 +1561,45 @@ function duelMenu(msg){
     if(a==='join'){const c=($('#code').value||'').toUpperCase().replace(/[^A-Z]/g,'');if(c.length!==4){duelMenu('Enter the 4-letter code from your friend’s screen.');return}joinDuel(c,false)}
   });
 }
+function loadPeerJS(){return new Promise((res,rej)=>{if(window.Peer)return res();const sc=document.createElement('script');sc.src='https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';sc.onload=()=>window.Peer?res():rej(new Error('load'));sc.onerror=()=>rej(new Error('load'));document.head.appendChild(sc)})}
+function peerTransport(code,host){
+  return new Promise(async(resolve,reject)=>{
+    try{await loadPeerJS()}catch(e){reject({code:'offline'});return}
+    const hostId='inkblade-'+code.toLowerCase();
+    let peer;try{peer=host?new window.Peer(hostId,{debug:0}):new window.Peer({debug:0})}catch(e){reject({code:'error'});return}
+    let conn=null,theirs=null,handlers=[],done=false;const mine={};
+    const list=()=>{const a=[{peer:'me',by:null,isMe:true,sameTab:true,kind:'viewer',guest:false,presence:Object.assign({},mine),updatedAt:Date.now()}];if(theirs)a.push({peer:'rival',by:null,isMe:false,sameTab:false,kind:'viewer',guest:false,presence:theirs,updatedAt:Date.now()});return a};
+    const fire=()=>{const ps=list();handlers.slice().forEach(h=>{try{h({peers:ps,joined:[],left:[],updated:[]})}catch(e){}})};
+    const send=()=>{if(conn&&conn.open){try{conn.send({t:'p',p:mine})}catch(e){}}};
+    const wire=c=>{conn=c;c.on('open',send);c.on('data',d=>{if(d&&d.t==='p'&&d.p&&typeof d.p==='object'){theirs=Object.freeze(Object.assign({},d.p));fire()}});c.on('close',()=>{if(conn===c){conn=null;theirs=null;fire()}});c.on('error',()=>{})};
+    const T={kindOf:'p2p',
+      presence(patch){for(const k in patch){if(patch[k]===null)delete mine[k];else mine[k]=patch[k]}send();return Promise.resolve()},
+      peers:list,
+      onPeers(h){handlers.push(h);setTimeout(()=>{try{h({peers:list(),joined:[],left:[],updated:[]})}catch(e){}},0);return()=>{handlers=handlers.filter(x=>x!==h)}},
+      leave(){try{conn&&conn.close()}catch(e){}try{peer.destroy()}catch(e){}return Promise.resolve()}};
+    const fail=c=>{if(done)return;done=true;clearTimeout(to);try{peer.destroy()}catch(e){}reject({code:c})};
+    const to=setTimeout(()=>fail('timeout'),15000);
+    peer.on('open',()=>{
+      if(host){peer.on('connection',c=>{if(conn&&conn.open){try{c.close()}catch(e){}return}wire(c)});done=true;clearTimeout(to);resolve(T)}
+      else{const c=peer.connect(hostId,{reliable:true});wire(c);c.on('open',()=>{if(!done){done=true;clearTimeout(to);resolve(T)}})}
+    });
+    peer.on('error',e=>fail(e&&e.type||'error'));
+  });
+}
 async function joinDuel(code,host){
-  showOv(`<div class="eyebrow">Duel</div><h2>Connecting…</h2>`,()=>{});
+  showOv(`<div class="eyebrow">Duel</div>${host?'<p>Your match code. Read it to your friend:</p><div class="code">'+code+'</div>':'<p>Joining match <b>'+code+'</b>…</p>'}<h2 style="font-size:24px">Connecting…</h2><p class="small">This takes a few seconds.</p>`,a=>{if(a==='back')duelMenu()});
+  let t=null,errCode='';
   const r=await getRoom();
-  if(!r){duelMenu('Live Duels only work when you open Ink Blade inside Claude. Every other mode works here.');return}
-  let nr;try{nr=await r.join('ink-'+code.toLowerCase())}catch(e){duelMenu('Couldn’t open the match ('+(e&&e.code||'error')+'). Try again.');return}
-  duel={r:nr,code,host,st:'lobby',rival:null,go:0,seed:0,sent:0,recv:0,result:null,unsub:null};
-  duel.unsub=nr.onPeers(onDuelPeers);
+  if(r){try{t=await r.join('ink-'+code.toLowerCase())}catch(e){t=null;errCode=e&&e.code||'error'}}
+  if(!t){try{t=await peerTransport(code,host)}catch(e){errCode=e&&e.code||'error';t=null}}
+  if(!t){
+    if(host&&errCode==='unavailable-id'){const L='ABCDEFGHJKMNPQRSTUVWXYZ';let c='';for(let i=0;i<4;i++)c+=L[Math.floor(Math.random()*L.length)];joinDuel(c,true);return}
+    const why=errCode==='peer-unavailable'?'No match found with code '+code+'. Check the code and make sure your friend is still on the lobby screen.':errCode==='offline'||errCode==='network'||errCode==='server-error'?'Couldn’t reach the match server. Check that you’re online and try again.':'Couldn’t connect ('+errCode+'). Try again.';
+    duelMenu(why);return}
+  duel={r:t,code,host,st:'lobby',rival:null,go:0,seed:0,sent:0,recv:0,result:null,unsub:null};
+  duel.unsub=t.onPeers(onDuelPeers);
   netPresence({nm:myName,br:curBr().n,host,st:'lobby',sent:0,m:0,go:null,seed:null});
-  lobby();
+  lobby();sfx('offer');
 }
 function leaveDuel(){if(!duel)return;try{duel.unsub&&duel.unsub();duel.r.leave()}catch(e){}duel=null;$('#rival').hidden=true}
 function netPresence(patch){if(!duel)return;duel.r.presence(patch).catch(()=>{})}
