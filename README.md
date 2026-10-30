@@ -17,3 +17,13 @@ Open the game's GitHub Pages link, then:
 It opens full screen like a regular app and works offline after the first visit. Progress is saved on the device.
 
 Live Duels only work when the game is opened inside Claude.
+
+## Android app
+
+Every update to this repository builds a real Android app automatically.
+
+1. On your Android phone, open **Releases** on this repository (or go straight to `https://github.com/ninjaivan2012-gif/ink-blade/releases/latest`).
+2. Tap **ink-blade.apk** to download it.
+3. Open the downloaded file. If your phone asks, allow your browser to install unknown apps, then tap **Install**.
+
+New versions install over the old one and keep your progress.

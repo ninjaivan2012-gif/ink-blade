@@ -1,0 +1,79 @@
+name: Build Android app
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Create the Android project
+        run: |
+          mkdir build && cd build
+          npm init -y > /dev/null
+          npm install @capacitor/core@6.2.0 @capacitor/cli@6.2.0 @capacitor/android@6.2.0
+          mkdir www
+          cp ../index.html ../manifest.webmanifest ../sw.js ../*.png www/
+          npx cap init "Ink Blade" com.ninjaivan.inkblade --web-dir www
+          npx cap add android
+
+      - name: Add icon, splash screen and phone settings
+        run: |
+          W=$GITHUB_WORKSPACE
+          R=$W/build/android/app/src/main/res
+          for d in $R/mipmap-*dpi; do
+            cp $W/icon-512.png $d/ic_launcher.png
+            cp $W/icon-512.png $d/ic_launcher_round.png
+            cp $W/icon-maskable-512.png $d/ic_launcher_foreground.png
+          done
+          rm -rf $R/mipmap-anydpi-v26
+          for d in $R/drawable*; do
+            if [ -f $d/splash.png ]; then cp $W/android-build/splash.png $d/splash.png; fi
+          done
+          M=$W/build/android/app/src/main/AndroidManifest.xml
+          sed -i 's#<activity#<activity android:screenOrientation="portrait"#' $M
+          sed -i 's#</manifest>#    <uses-permission android:name="android.permission.VIBRATE" />\n</manifest>#' $M
+          sed -i 's#<style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">#&<item name="android:windowFullscreen">true</item>#' $R/values/styles.xml
+          G=$W/build/android/app/build.gradle
+          sed -i "s/versionCode 1$/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"1.${{ github.run_number }}\"/" $G
+          grep -n "version" $G
+
+      - name: Build the app
+        run: |
+          cd build/android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Sign the app
+        run: |
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          U=build/android/app/build/outputs/apk/release/app-release-unsigned.apk
+          $BT/zipalign -p -f 4 $U aligned.apk
+          $BT/apksigner sign --ks android-build/app.keystore --ks-pass pass:inkblade --key-pass pass:inkblade --ks-key-alias inkblade --out ink-blade.apk aligned.apk
+          $BT/apksigner verify ink-blade.apk
+          ls -la ink-blade.apk
+
+      - name: Publish the download
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.${{ github.run_number }}
+          name: Ink Blade 1.${{ github.run_number }}
+          body: "Tap **ink-blade.apk** below on your Android phone to download it, then open it to install."
+          files: ink-blade.apk
+          make_latest: true
