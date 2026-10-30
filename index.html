@@ -706,7 +706,7 @@ function fireGadget(){
 function updSupers(dt){
   const p=S.p;
   for(const q of S.echoQ){q.t-=dt;if(q.t<=0){q.done=true;S.allies.push({k:'ghost',x:q.x,y:q.y,vx:q.vx,vy:q.vy,t:2,cd:0,m:1,p2:q.p2});sfx('dash',.3)}}S.echoQ=S.echoQ.filter(q=>!q.done);
-  for(const mn of S.mines){OWNER=mn.p2?2:1;mn.t-=dt;for(const e of S.enemies){if(!e.dead&&!e.air&&Math.hypot(e.x-mn.x,e.y-mn.y)<e.r+3){mn.boom=true;break}}if(mn.boom){mn.t=0;sfx('boom');S.shake=Math.max(S.shake,.15);S.rings.push({x:mn.x,y:mn.y,r0:2,r1:11,life:.3,max:.3,c:HOT});for(const e of S.enemies)if(Math.hypot(e.x-mn.x,e.y-mn.y)<11+e.r)dmgE(e,2*P.supMul,'arc')}}OWNER=1;S.mines=S.mines.filter(m=>m.t>0);
+  for(const mn of S.mines){OWNER=mn.p2?2:1;mn.t-=dt;for(const e of S.enemies){if(!e.dead&&!e.air&&e.pvpOwner!==OWNER&&Math.hypot(e.x-mn.x,e.y-mn.y)<e.r+3){mn.boom=true;break}}if(mn.boom){mn.t=0;sfx('boom');S.shake=Math.max(S.shake,.15);S.rings.push({x:mn.x,y:mn.y,r0:2,r1:11,life:.3,max:.3,c:HOT});for(const e of S.enemies)if(Math.hypot(e.x-mn.x,e.y-mn.y)<11+e.r)dmgE(e,2*P.supMul,'arc')}}OWNER=1;S.mines=S.mines.filter(m=>m.t>0);
   if(S.br.id==='nova'){const ang=T*3,ox=p.x+Math.cos(ang)*9,oy=p.y+Math.sin(ang)*9;S.sat={x:ox,y:oy};for(const e of S.enemies)if(!e.dead&&e.allyCd<=0&&Math.hypot(e.x-ox,e.y-oy)<e.r+1.8){e.allyCd=.5;dmgE(e,1,'arc')}}
   for(const z of S.zones){OWNER=z.p2?2:1;
     z.t-=dt;
@@ -757,7 +757,7 @@ function hitEnemy(e,dmg,src){
     if(S.br.id==='viper'&&P.star&&e.hp>0)e.poison=2.5;
   }
   if(isBoss(e)&&e.hp>0){if(src==='p2'&&S.p2)S.p2.super=Math.min(2,S.p2.super+.05);else gainSuper(.05)}
-  if(e.hp<=0)kill(e,src);else{sfx('hit');S.hs=Math.max(S.hs,.04);for(let i=0;i<5;i++)S.parts.push({x:e.x,y:e.y,vx:rnd(-40,40),vy:rnd(-40,40),life:.25,max:.25,c:INK,sz:1})}
+  if(e.hp<=0)kill(e,src);else{sfx('hit');if(src!=='p2'&&OWNER!==2)S.hs=Math.max(S.hs,.04);for(let i=0;i<5;i++)S.parts.push({x:e.x,y:e.y,vx:rnd(-40,40),vy:rnd(-40,40),life:.25,max:.25,c:INK,sz:1})}
 }
 function kill(e,src){
   if(e.dead||S.kind==='coopg')return;e.dead=true;S.kills++;src=src||'dash';quest('kills');
@@ -778,7 +778,7 @@ function kill(e,src){
   S.focus=Math.min(P.focusMax,S.focus+(S.br.id==='kite'?.55:.3));
   if(P.vamp&&S.kills%20===0&&S.hearts<P.maxHearts){S.hearts=Math.min(P.maxHearts,S.hearts+1);S.texts.push({x:S.p.x,y:S.p.y-12,s:'+1 heart',c:PC,life:1})}
   const boss=isBoss(e);
-  S.hs=Math.max(S.hs,boss?.4:.03+Math.min(.05,S.p.dashKills*.012));S.shake=Math.max(S.shake,boss?.6:.12);
+  if(src!=='p2'&&OWNER!==2||boss){S.hs=Math.max(S.hs,boss?.4:.03+Math.min(.05,S.p.dashKills*.012));S.shake=Math.max(S.shake,boss?.6:.12)}
   inkBlot(e.x,e.y,e.r*(boss?2.2:1.6));
   for(let i=0;i<12;i++){const a=Math.random()*TAU,s=rnd(20,70);S.parts.push({x:e.x,y:e.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rnd(.25,.5),max:.5,c:INK,sz:rnd(.8,1.8)})}
   if(!e.rival&&!e.dummy){const r=Math.random();if(r<.05)dropAt(e.x,e.y,'super');else if(r<.19)dropAt(e.x,e.y,'coin');else if(r<.215&&S.mod!=='glass')dropAt(e.x,e.y,'heart');else if(r<.225)dropAt(e.x,e.y,'gadget')}
@@ -1767,7 +1767,7 @@ function statsFor(brId,lv,picks,mod){
 function livePlayers(){const a=[];if(!S.p.dead)a.push(S.p);if(S.p2&&!S.p2.dead)a.push(S.p2);return a.length?a:[S.p]}
 function targetFor(e){if(S.decoy)return S.decoy;if(!S.p2)return S.p;let b=S.p,bd=1e9;for(const q of livePlayers()){const d=Math.hypot(q.x-e.x,q.y-e.y);if(d<bd){bd=d;b=q}}return b}
 function newP2(){
-  const g=duel&&duel.rival&&duel.rival.presence&&duel.rival.presence.g;
+  let g=duel&&duel.rival&&duel.rival.presence&&duel.rival.presence.g;if(g&&g.sd!==duel.seed)g=Object.assign({},g,{ev:[]});
   const br=g&&BRM[g.br]?g.br:'kite',lv=g?(g.lv|0)||1:1,picks=g&&Array.isArray(g.pk)?g.pk.filter(id=>UP[id]):[];
   const P2=statsFor(br,lv,picks,S.mod);
   return{x:AW*.62,y:AH*.7,vx:0,vy:0,r:3.1,lethal:false,prevL:false,inv:0,iron:0,hearts:P2.maxHearts,maxHearts:P2.maxHearts,br,lv,sk:g?g.sk|0:0,nm:g?cleanName(g.nm)||'Teammate':'Teammate',picks,P:P2,super:0,gad:lv>=GADLV?3:0,gadGiven:lv>=GADLV,dead:false,evSeen:0,kc:0,dashCount:0,tp:null,tpn:0,orbit:0,orbitN:3,orbitM:1,sat:null};
@@ -1781,7 +1781,7 @@ function p2Hurt(amt,invT){
 }
 function withP2(fn){
   const q=S.p2;
-  const sv={p:S.p,br:S.br,P,sup:S.super,orbit:S.orbit,orbitN:S.orbitN,orbitM:S.orbitM,iron:S.ironT,phase:S.phaseT,charges:S.charges,focus:S.focus,gad:S.gad,gadCd:S.gadCd,banner:S.banner,flash:S.flash,flashC:S.flashC,slow:S.slow,al:S.allies.length,zn:S.zones.length};
+  const sv={hs:S.hs,shake:S.shake,hurtFx:S.hurtFx,p:S.p,br:S.br,P,sup:S.super,orbit:S.orbit,orbitN:S.orbitN,orbitM:S.orbitM,iron:S.ironT,phase:S.phaseT,charges:S.charges,focus:S.focus,gad:S.gad,gadCd:S.gadCd,banner:S.banner,flash:S.flash,flashC:S.flashC,slow:S.slow,al:S.allies.length,zn:S.zones.length};
   const proxy={x:q.x,y:q.y,vx:q.vx,vy:q.vy,r:q.r,inv:q.inv,lethal:q.lethal,dead:false},bl0=S.bullets.length;
   OWNER=2;S.p=proxy;S.br=BRM[q.br];P=q.P;S.super=q.super;S.gad=q.gad;S.gadCd=0;
   try{fn()}finally{
@@ -1792,7 +1792,7 @@ function withP2(fn){
     for(let i=sv.al;i<S.allies.length;i++)S.allies[i].p2=true;
     for(let i=sv.zn;i<S.zones.length;i++)S.zones[i].p2=true;
     for(let i=bl0;i<S.bullets.length;i++)if(S.bullets[i].friendly)S.bullets[i].p2=true;OWNER=1;
-    S.p=sv.p;S.br=sv.br;P=sv.P;S.super=sv.sup;S.orbit=sv.orbit;S.orbitN=sv.orbitN;S.orbitM=sv.orbitM;S.ironT=sv.iron;S.phaseT=sv.phase;S.charges=sv.charges;S.focus=sv.focus;S.gad=sv.gad;S.gadCd=sv.gadCd;S.banner=sv.banner;S.slow=sv.slow;
+    S.p=sv.p;S.br=sv.br;P=sv.P;S.super=sv.sup;S.orbit=sv.orbit;S.orbitN=sv.orbitN;S.orbitM=sv.orbitM;S.ironT=sv.iron;S.phaseT=sv.phase;S.charges=sv.charges;S.focus=sv.focus;S.gad=sv.gad;S.gadCd=sv.gadCd;S.banner=sv.banner;S.slow=sv.slow;S.flash=sv.flash;S.flashC=sv.flashC;S.hs=sv.hs;S.shake=Math.max(sv.shake,Math.min(S.shake,.08));S.hurtFx=sv.hurtFx;
   }
 }
 function coopGuestEvent(ev){
@@ -1809,7 +1809,7 @@ function coopHostTick(dt){OWNER=2;try{coopHostTick2(dt)}finally{OWNER=1}}
 function coopHostTick2(dt){
   const q=S.p2;if(!q)return;
   const rp=duel&&duel.rival&&duel.rival.presence;
-  if(rp&&rp.g){const g=rp.g;
+  if(rp&&rp.g&&rp.g.sd===duel.seed){const g=rp.g;
     if(!q.dead){q.x=clamp((g.x|0)/10,q.r,AW-q.r);q.y=clamp((g.y|0)/10,q.r,AH-q.r);q.vx=+g.vx||0;q.vy=+g.vy||0;q.lethal=!!g.l}
     if(g.rt&&g.rt!==q.lrt){q.lrt=g.rt;const nowR=performance.now(),off=g.rt-nowR;if(q.off==null||off>q.off)q.off=off;else q.off+=(off-q.off)*.03;(q.hist=q.hist||[]).push([g.rt,q.x,q.y]);if(q.hist.length>6)q.hist.shift()}
     const pk=Array.isArray(g.pk)?g.pk.filter(id=>UP[id]):[];
@@ -1855,7 +1855,7 @@ function buildSnap(){
     return x});
   const bm=[];for(const o of S.enemies)if(o.beams)for(const b of o.beams)bm.push(b.map(r1));
   const haz=S.haz.map(h=>h.k==='spike'?[0,r1(h.x),r1(h.y),r1(h.w),r1(h.h)]:h.k==='bump'?[1,r1(h.x),r1(h.y),r1(h.r),Math.round((h.hit||0)*100)]:h.k==='pool'?[2,r1(h.x),r1(h.y),r1(h.r)]:[3,r1(h.x1),r1(h.y1),r1(h.x2),r1(h.y2),r1(h.r),Math.round(h.ph*100),Math.round(h.spd*100)]);
-  const sn={s:++S.snapSeq,rt:Math.round(performance.now()),wv:S.wave,sc:S.score,ch:S.chain,cn:S.coins,tm:Math.round(S.time*100),in:Math.round((S.inter||0)*10),of:S.ofr|0,k:S.kills,
+  const sn={sd:duel?duel.seed:0,s:++S.snapSeq,rt:Math.round(performance.now()),wv:S.wave,sc:S.score,ch:S.chain,cn:S.coins,tm:Math.round(S.time*100),in:Math.round((S.inter||0)*10),of:S.ofr|0,k:S.kills,
     e,bm,hz:haz,
     bl:S.bullets.slice(-90).map(b=>{if(!b.id)b.id=S.bid=(S.bid||0)+1;return[b.id,r1(b.x),r1(b.y),Math.round(b.vx),Math.round(b.vy),r1(b.r),(b.friendly?1:0)|(b.heavy?2:0)|(b.fast?4:0)|(b.big?8:0)]}),
     d:S.drops.map(d=>[r1(d.x),r1(d.y),DKINDS.indexOf(d.k),Math.round(d.t*10)]),
@@ -1881,10 +1881,10 @@ function coopNet(rdt){
 }
 function guestEv(ev){S.evId=(S.evId||0)+1;ev.i=S.evId;S.evQ.push(ev);if(S.evQ.length>14)S.evQ.shift()}
 function sendGuest(){
-  const b=S.br;netPresence({g:{rt:Math.round(performance.now()),x:Math.round(S.p.x*10),y:Math.round(S.p.y*10),vx:Math.round(S.p.vx),vy:Math.round(S.p.vy),l:S.p.lethal?1:0,br:b.id,lv:brLv(b.id)||1,sk:skinSel[b.id]||0,nm:myName||'Player',pk:S.picks,ev:S.evQ}});
+  const b=S.br;netPresence({g:{sd:duel?duel.seed:0,rt:Math.round(performance.now()),x:Math.round(S.p.x*10),y:Math.round(S.p.y*10),vx:Math.round(S.p.vx),vy:Math.round(S.p.vy),l:S.p.lethal?1:0,br:b.id,lv:brLv(b.id)||1,sk:skinSel[b.id]||0,nm:myName||'Player',pk:S.picks,ev:S.evQ}});
 }
 function applySnap(w){
-  if(!w||w.s===S.lastSnap)return;S.lastSnap=w.s;const nowR=performance.now();if(w.rt){const off=w.rt-nowR;if(S.off==null||off>S.off)S.off=off;else S.off+=(off-S.off)*.03}const RT=w.rt||nowR;
+  if(!w||w.s===S.lastSnap||(duel&&w.sd!==duel.seed))return;S.lastSnap=w.s;const nowR=performance.now();if(w.rt){const off=w.rt-nowR;if(S.off==null||off>S.off)S.off=off;else S.off+=(off-S.off)*.03}const RT=w.rt||nowR;
   const rd=v=>(v||0)/10,old=new Map(S.enemies.map(o=>[o.id,o]));
   S.enemies=(w.e||[]).map(a=>{const type=ETYPES[a[1]]||'grunt';let o=old.get(a[0]);if(!o)o={id:a[0],x:rd(a[2]),y:rd(a[3]),t:Math.random()*2,seed:(a[0]*37)%99,born:T};
     o.type=type;o.tx2=rd(a[2]);o.ty2=rd(a[3]);(o.hist=o.hist||[]).push([RT,o.tx2,o.ty2]);if(o.hist.length>6)o.hist.shift();o.r=rd(a[4]);o.hp=rd(a[5]);o.maxHp=rd(a[6]);o.face=a[7]/100;const f=a[8];
@@ -1928,7 +1928,7 @@ function guestUpdate(rdt){
   if(S.count>0){S.count-=rdt;if(S.count<=0){S.banner={t:'Go!',s:'',life:.8};sfx('wave')}fx(rdt);return}
   const dt=rdt;
   if(!S.p.dead)updPlayer(dt);else{S.p.vx=S.p.vy=0}
-  const RN=performance.now()+(S.off||0)-110;
+  const RN=performance.now()+(S.off||0)-(duel&&duel.r&&duel.r.kindOf==='p2p'?80:115);
   for(const o of S.enemies){o.t+=dt;const q=interp(o.hist,RN);if(q){o.x=q[0];o.y=q[1]}}
   for(const b of S.bullets){const k=Math.max(-.2,Math.min(.25,(RN-b.t0)/1000));b.x=b.bx+b.vx*k;b.y=b.by+b.vy*k}
   for(const a of S.allies){const k=Math.max(-.2,Math.min(.25,(RN-a.t0)/1000));a.x=a.bx+(a.vx||0)*k;a.y=a.by+(a.vy||0)*k}
@@ -1942,7 +1942,7 @@ function guestUpdate(rdt){
 }
 function drawMate(m){
   if(!m||m.x==null)return;
-  let mx2=m.x,my2=m.y;if(S.kind==='coop'&&m.hist&&m.off!=null){const q=interp(m.hist,performance.now()+m.off-80);if(q){mx2=q[0];my2=q[1]}}
+  let mx2=m.x,my2=m.y;if(S.kind==='coop'&&m.hist&&m.off!=null){const q=interp(m.hist,performance.now()+m.off-(duel&&duel.r&&duel.r.kindOf==='p2p'?60:90));if(q){mx2=q[0];my2=q[1]}}
   const x=X(mx2),y=Y(my2),r=3.1*u*1.35;
   ctx.save();if(m.dead)ctx.globalAlpha=.3;else if(m.inv&&Math.floor(T*14)%2)ctx.globalAlpha=.5;
   if(m.lethal){const n=Math.hypot(m.vx,m.vy)||1,ax=m.vx/n,ay=m.vy/n,len=Math.min(14,n*.05)*u;ctx.strokeStyle=hexA(mateCol(m),.5);ctx.lineWidth=r*1.6;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-ax*len,y-ay*len);ctx.stroke()}
@@ -1979,11 +1979,12 @@ function updHud(){
 let last=performance.now();
 function frame(now){
   const rdt=Math.min(.05,(now-last)/1000);last=now;T+=rdt;
-  if(S&&(mode==='play'||mode==='dying'))update(rdt);
-  else if(S&&mode==='card')fx(rdt);
-  if(S&&S.kind==='duel')netTick(rdt);
-  if(S&&S.kind==='coop')coopNet(rdt);
-  draw();updHud();requestAnimationFrame(frame);
+  requestAnimationFrame(frame);
+  try{if(S&&(mode==='play'||mode==='dying'))update(rdt);
+  else if(S&&mode==='card')fx(rdt);}catch(e){console.error(e);OWNER=1}
+  try{if(S&&S.kind==='duel')netTick(rdt);
+  if(S&&S.kind==='coop')coopNet(rdt);}catch(e){console.error(e)}
+  try{draw();updHud()}catch(e){console.error(e);try{ctx.restore()}catch(_){}}
 }
 layout();menu();requestAnimationFrame(frame);
 getRoom();
